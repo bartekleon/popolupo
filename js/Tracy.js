@@ -53,7 +53,7 @@ function Tracy(x,y,z)
     for(var i=0; i<this.vehicle.wheelInfos.length; i++){
         var wheel = this.vehicle.wheelInfos[i];
         var cylinderShape = new CANNON.Cylinder(wheel.radius, wheel.radius, wheel.radius / 2, 20);
-        var wheelBody = new CANNON.Body({ mass: 2 });
+        var wheelBody = new CANNON.Body({ mass: 5 });
         wheelBody.type = CANNON.Body.KINEMATIC;
         wheelBody.collisionFilterGroup = 0;
         var q = new CANNON.Quaternion();

@@ -20,17 +20,18 @@ function isObstacleAhead() {
 function isObstacleOnTheSide() {
   const proximity = tracy.getProximitySensorReading();
   
-  return proximity.right < 8 && proximity.right !== 0 || proximity.left < 8 && proximity.left !== 0;
+  return proximity.right < 10 && proximity.right !== 0 || proximity.left < 10 && proximity.left !== 0;
 }
 
-const maxSpeed = 2;
-const maxRotation = 10;
-const interval = 30;
+const maxSpeed = 0.6;
+const maxRotation = 15;
+const interval = 500;
 
 let last = 0;
 let step = 0;
 let stoppingForce = 0;
 let isBraking = false;
+
 
 /**
  * Algorithm how to get from A to B:
@@ -41,67 +42,108 @@ let isBraking = false;
  * 2.3. GOTO 1
  * 3. You have arrived
  */
+
 function goto(x2, y2) {
-  const position = simulator.getTracyPosition();
-  const x1 = position.x;
-  const y1 = position.y;
-  const requiredRotation = Math.atan2(y2 - y1, x2 - x1);
-  const currentRotation = (tracy.orientation.z / 180 * Math.PI) % Math.PI;
-  const currentDist = (x1 - x2) ** 2 + (y1 - y2) ** 2;
-
-  const lookingAtTheTarget = Math.abs(currentRotation + requiredRotation) < 0.02;
-
-  function rotate() {
-    if(last === 1 && stoppingForce > 0) {
-      isBraking = true;
-      stoppingForce -= 1;
-      tracy.setMotorSpeeds(0, 0);
-    } else {
-      isBraking = false;
-      last = 2;
-      step = maxRotation;
-      console.log("yes. im rotating");
-      tracy.setMotorSpeeds(maxRotation, -maxRotation);
-    }
-  }
-
-  function move() {
-    if(last === 2 && step > 0) {
-      tracy.setMotorSpeeds(0, 0);
-      step -= 4;
-    } else {
-      console.log('yes im moving')
-      last = 1;
-      stoppingForce = 20;
-      tracy.setMotorSpeeds(maxSpeed, maxSpeed);
-    }
-  }
-  if(currentDist < 10) { // FINISHED
-    console.log("FINISHED!!!");
-    tracy.setMotorSpeeds(0, 0);
-  } else if(!isBraking && isObstacleAhead()) { // obstacle
-    console.log('dodging');
-    rotate();
-  } else if(!lookingAtTheTarget && !isObstacleOnTheSide()) {
-    console.log('rotating towards the target');
-    rotate();
-  } else {
-    console.log('moving towards the target');
-    move();
-  } 
+  rotateTracyToFaceTarget(x2, y2);
 }
 
+function rotateTracyToFaceTarget(x2, y2) {
+  console.log('rotating towards');
 
+  tracy.setMotorSpeeds(maxRotation, -maxRotation);
+  const int = window.setInterval(() => {
+    const position = simulator.getTracyPosition();
+    const x1 = position.x;
+    const y1 = position.y;
+  
+    let requiredRotation = Math.atan2(y2 - y1, x2 - x1);
+    const rotation = tracy.orientation;
+    tracy.orientation.z = rotation.z % 360;
+    if(requiredRotation < -Math.PI / 2) {
+      requiredRotation += Math.PI;
+      requiredRotation = -requiredRotation;
+    } else if(requiredRotation > Math.PI / 2) {
+      requiredRotation -= Math.PI;
+      requiredRotation = -requiredRotation;
+    }
+    const required = Math.abs((rotation.z / 180 * Math.PI) % Math.PI + requiredRotation);
+    console.log((rotation.z / 180 * Math.PI) % Math.PI, requiredRotation);
+    if(required < 0.02) {
+      window.clearInterval(int);
+      tracy.setMotorSpeeds(0, 0);
+      window.setTimeout(() => {
+        moveTracyTowardsTarget(x2, y2);
+      }, interval);
+    }
+  }, 20);
+}
+
+function moveTracyTowardsTarget(targetX, targetY) {
+  console.log('moving towards');
+  tracy.setMotorSpeeds(maxSpeed, maxSpeed);
+  const int = window.setInterval(() => {
+    if(isObstacleAhead()) {
+      window.clearInterval(int);
+      tracy.setMotorSpeeds(0, 0);
+      window.setTimeout(() => {
+        dodgeObstacle(targetX, targetY);
+      }, interval);
+    }
+    const position = simulator.getTracyPosition();
+    const x1 = position.x;
+    const y1 = position.y;
+    if((x1 - targetX) ** 2 + (y1 - targetY) ** 2 < 10) {
+      console.log('FINISHED');
+      tracy.setMotorSpeeds(0, 0);
+      window.clearInterval(int);
+    }
+  }, 15);
+}
+
+function dodgeObstacle(targetX, targetY) {
+  console.log('dodge');
+  tracy.setMotorSpeeds(maxRotation, -maxRotation);
+
+  const int = window.setInterval(() => {
+    if(!isObstacleAhead()) {
+      clearInterval(int);
+      window.setTimeout(() => {
+        tracy.setMotorSpeeds(0, 0);
+      }, 150);
+      window.setTimeout(() => {
+        moveAlongObstacle(targetX, targetY);
+      }, interval);
+    }
+  }, 10);
+}
+
+function moveAlongObstacle(x2, y2) {
+  console.log('move along');
+  tracy.setMotorSpeeds(maxSpeed, maxSpeed);
+  const int = window.setInterval(() => {
+    console.log(tracy.getProximitySensorReading());
+    if(!isObstacleOnTheSide()) {
+      clearInterval(int);
+      tracy.setMotorSpeeds(-maxSpeed / 4, -maxSpeed / 4);
+      window.setTimeout(() => {
+        tracy.setMotorSpeeds(0, 0);
+      }, interval);
+      window.setTimeout(() => {
+        rotateTracyToFaceTarget(x2, y2);
+      }, interval * 2);
+    }
+  }, 20);
+}
+
+function start(targetX, targetY) {
+  goto(targetX, targetY);
+  simulator.addBlock(targetX, targetY, 3, 1, 1, 1, 1);
+}
 
 // example: 4, -30
 window.setTimeout(() => {
   const targetX = 4;
   const targetY = -15;
-  window.setInterval(() => {
-
-    goto(targetX, targetY);
-  }, interval);
-  simulator.addBlock(targetX, targetY, 3, 1, 1, 1, 1);
+  goto(targetX, targetY);
+  // simulator.addBlock(targetX, targetY, 3, 1, 1, 1, 1);
 }, 3000);
-
-console.log(tracy);
