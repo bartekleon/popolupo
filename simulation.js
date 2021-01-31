@@ -17,14 +17,14 @@ function isObstacleAhead() {
   return proximity.front < 8 && proximity.front !== 0;
 }
 
-function isObstacleOnTheRight() {
+function isObstacleOnTheSide() {
   const proximity = tracy.getProximitySensorReading();
   
-  return proximity.right < 8 &&  proximity.right !== 0;
+  return proximity.right < 8 && proximity.right !== 0 || proximity.left < 8 && proximity.left !== 0;
 }
 
 const maxSpeed = 2;
-const maxRotation = 15;
+const maxRotation = 10;
 const interval = 30;
 
 let last = 0;
@@ -52,11 +52,7 @@ function goto(x2, y2) {
   const lookingAtTheTarget = Math.abs(currentRotation + requiredRotation) < 0.02;
 
   function rotate() {
-    if(last === 1 && step > 0) {
-      isBraking = true;
-      tracy.setMotorSpeeds(-step, -step);
-      step -= 0.05;
-    } else if(last === 1 && stoppingForce > 0) {
+    if(last === 1 && stoppingForce > 0) {
       isBraking = true;
       stoppingForce -= 1;
       tracy.setMotorSpeeds(0, 0);
@@ -71,31 +67,28 @@ function goto(x2, y2) {
 
   function move() {
     if(last === 2 && step > 0) {
-      tracy.setMotorSpeeds(step, step);
-      step -= 3;
+      tracy.setMotorSpeeds(0, 0);
+      step -= 4;
     } else {
+      console.log('yes im moving')
       last = 1;
-      stoppingForce = 10;
-      step = maxSpeed;
+      stoppingForce = 20;
       tracy.setMotorSpeeds(maxSpeed, maxSpeed);
     }
   }
   if(currentDist < 10) { // FINISHED
     console.log("FINISHED!!!");
     tracy.setMotorSpeeds(0, 0);
-  } else if(!isObstacleAhead() && isObstacleOnTheRight()) {
-    console.log("forward!!!");
-    move();
-  } else if(!isBraking && isObstacleAhead()) {
+  } else if(!isBraking && isObstacleAhead()) { // obstacle
     console.log('dodging');
     rotate();
-  } else if(lookingAtTheTarget) {
-    console.log('moving towards the target');
-    move();
-  } else {
+  } else if(!lookingAtTheTarget && !isObstacleOnTheSide()) {
     console.log('rotating towards the target');
     rotate();
-  }
+  } else {
+    console.log('moving towards the target');
+    move();
+  } 
 }
 
 

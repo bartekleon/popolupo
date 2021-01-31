@@ -53,7 +53,7 @@ function Tracy(x,y,z)
     for(var i=0; i<this.vehicle.wheelInfos.length; i++){
         var wheel = this.vehicle.wheelInfos[i];
         var cylinderShape = new CANNON.Cylinder(wheel.radius, wheel.radius, wheel.radius / 2, 20);
-        var wheelBody = new CANNON.Body({ mass: 0 });
+        var wheelBody = new CANNON.Body({ mass: 2 });
         wheelBody.type = CANNON.Body.KINEMATIC;
         wheelBody.collisionFilterGroup = 0;
         var q = new CANNON.Quaternion();
@@ -161,7 +161,13 @@ Tracy.prototype.setMotorSpeeds = function(rightMotorSpeed,leftMotorSpeed)
 {
     /* The physics engine has to explicitly set the brakes in order
      to stop Tracy from continuing to roll across the surface. */
-    if( (rightMotorSpeed === 0) && (leftMotorSpeed === 0) ) { this.stop(); }
+    if( (rightMotorSpeed === 0) && (leftMotorSpeed === 0) ) {
+        this.stop();
+    } else {
+        for(var i = 0; i < 4; i++) {
+            this.vehicle.setBrake(0, i);
+        }
+    }
 
     // The wheels numbered 1 and 3 are on the left side of Tracy.
     this.vehicle.applyEngineForce(leftMotorSpeed, 1);
