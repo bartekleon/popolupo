@@ -9,6 +9,29 @@ simulator.addRamp(10, 30, -25);
 
 let stepper = 0;
 
+let oldDist = null;
+
+function isObstacleAhead() {
+  const proximity = tracy.getProximitySensorReading();
+  
+  return proximity.front < 8 && proximity.front !== 0;
+}
+
+function isObstacleOnTheRight() {
+  const proximity = tracy.getProximitySensorReading();
+  
+  return proximity.right < 8 &&  proximity.right !== 0;
+}
+
+const maxSpeed = 2;
+const maxRotation = 15;
+const interval = 30;
+
+let last = 0;
+let step = 0;
+let stoppingForce = 0;
+let isBraking = false;
+
 /**
  * Algorithm how to get from A to B:
  * 1. Change rotation to face B
@@ -22,54 +45,70 @@ function goto(x2, y2) {
   const position = simulator.getTracyPosition();
   const x1 = position.x;
   const y1 = position.y;
-  const proximity = tracy.getProximitySensorReading();
-  const rotation = tracy.getMagnetometerReading(); // change only Z
-
   const requiredRotation = Math.atan2(y2 - y1, x2 - x1);
-  rotateTracyToFaceTarget(requiredRotation, x2, y2);
+  const currentRotation = (tracy.orientation.z / 180 * Math.PI) % Math.PI;
+  const currentDist = (x1 - x2) ** 2 + (y1 - y2) ** 2;
 
-  // tracy.setMotorSpeeds(right, left) // force in N
-  // tract.stop() // tract.setMotorSpeeds(0, 0); // applies 10N breaking force
+  const lookingAtTheTarget = Math.abs(currentRotation + requiredRotation) < 0.02;
 
-  console.log('pos', x1, y1);
-  console.log('pos2', x2, y2);
-  console.log(requiredRotation);
-  console.log('prox', proximity);
-}
-
-function rotateTracyToFaceTarget(requiredRotation, x2, y2) {
-  stepper = 1;
-  tracy.setMotorSpeeds(20, -20);
-  const int = window.setInterval(() => {
-    const rotation = tracy.orientation;
-    if(Math.abs((rotation.z / 180 * Math.PI) % Math.PI + requiredRotation) < 0.01) {
+  function rotate() {
+    if(last === 1 && step > 0) {
+      isBraking = true;
+      tracy.setMotorSpeeds(-step, -step);
+      step -= 0.05;
+    } else if(last === 1 && stoppingForce > 0) {
+      isBraking = true;
+      stoppingForce -= 1;
       tracy.setMotorSpeeds(0, 0);
-      stepper = 2;
-      window.clearInterval(int);
-      moveTracyTowardsTarget(x2, y2);
+    } else {
+      isBraking = false;
+      last = 2;
+      step = maxRotation;
+      console.log("yes. im rotating");
+      tracy.setMotorSpeeds(maxRotation, -maxRotation);
     }
-  }, 20);
+  }
+
+  function move() {
+    if(last === 2 && step > 0) {
+      tracy.setMotorSpeeds(step, step);
+      step -= 3;
+    } else {
+      last = 1;
+      stoppingForce = 10;
+      step = maxSpeed;
+      tracy.setMotorSpeeds(maxSpeed, maxSpeed);
+    }
+  }
+  if(currentDist < 10) { // FINISHED
+    console.log("FINISHED!!!");
+    tracy.setMotorSpeeds(0, 0);
+  } else if(!isObstacleAhead() && isObstacleOnTheRight()) {
+    console.log("forward!!!");
+    move();
+  } else if(!isBraking && isObstacleAhead()) {
+    console.log('dodging');
+    rotate();
+  } else if(lookingAtTheTarget) {
+    console.log('moving towards the target');
+    move();
+  } else {
+    console.log('rotating towards the target');
+    rotate();
+  }
 }
 
-function moveTracyTowardsTarget(targetX, targetY) {
-  tracy.setMotorSpeeds(200, 200);
-  const int = window.setInterval(() => {
-    const position = simulator.getTracyPosition();
-    const x1 = position.x;
-    const y1 = position.y;
-    console.log((x1 - targetX) ** 2 + (y1 - targetY) ** 2, (x1 - targetX), (y1 - targetY))
-    if((x1 - targetX) ** 2 + (y1 - targetY) ** 2 < 10) {
-      console.log('hello?');
-      tracy.setMotorSpeeds(0, 0);
-      window.clearInterval(int);
-    }
-  }, 30);
-}
+
 
 // example: 4, -30
 window.setTimeout(() => {
-  goto(4, 30);
-  simulator.addBlock(4, 30, 3, 1, 1, 1, 1);
+  const targetX = 4;
+  const targetY = -15;
+  window.setInterval(() => {
+
+    goto(targetX, targetY);
+  }, interval);
+  simulator.addBlock(targetX, targetY, 3, 1, 1, 1, 1);
 }, 3000);
 
 console.log(tracy);
