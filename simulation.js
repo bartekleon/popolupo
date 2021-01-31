@@ -3,7 +3,7 @@ const tracy = new Tracy(0, 10, 3);
 simulator.addTracy(tracy);
 simulator.addBlock(3, 0, 3, 2, 2, 2, 2);
 simulator.addBlock(-3, 0, 3, 2, 2, 2, 2);
-simulator.addRamp(10, 30, -25);
+simulator.addRamp(35, -15, -25);
 
 // 35, -35
 
@@ -47,7 +47,7 @@ function goto(x2, y2) {
   rotateTracyToFaceTarget(x2, y2);
 }
 
-function rotateTracyToFaceTarget(x2, y2) {
+function rotateTracyToFaceTarget(x2, y2, end = false) {
   console.log('rotating towards');
 
   tracy.setMotorSpeeds(maxRotation, -maxRotation);
@@ -67,22 +67,21 @@ function rotateTracyToFaceTarget(x2, y2) {
       requiredRotation = -requiredRotation;
     }
     const required = Math.abs((rotation.z / 180 * Math.PI) % Math.PI + requiredRotation);
-    console.log((rotation.z / 180 * Math.PI) % Math.PI, requiredRotation);
-    if(required < 0.02) {
+    if(required < (end ? 0.0075 : 0.02)) {
       window.clearInterval(int);
       tracy.setMotorSpeeds(0, 0);
       window.setTimeout(() => {
-        moveTracyTowardsTarget(x2, y2);
+        moveTracyTowardsTarget(x2, y2, end);
       }, interval);
     }
-  }, 20);
+  }, end ? 5 : 20);
 }
 
-function moveTracyTowardsTarget(targetX, targetY) {
+function moveTracyTowardsTarget(targetX, targetY, end) {
   console.log('moving towards');
   tracy.setMotorSpeeds(maxSpeed, maxSpeed);
   const int = window.setInterval(() => {
-    if(isObstacleAhead()) {
+    if(isObstacleAhead() && !end) {
       window.clearInterval(int);
       tracy.setMotorSpeeds(0, 0);
       window.setTimeout(() => {
@@ -93,9 +92,15 @@ function moveTracyTowardsTarget(targetX, targetY) {
     const x1 = position.x;
     const y1 = position.y;
     if((x1 - targetX) ** 2 + (y1 - targetY) ** 2 < 10) {
+      tracy.setMotorSpeeds(500, 500);
       console.log('FINISHED');
-      tracy.setMotorSpeeds(0, 0);
-      window.clearInterval(int);
+      if(!end) {
+        tracy.setMotorSpeeds(0, 0);
+        window.clearInterval(int);
+        window.setTimeout(() => {
+          rotateTracyToFaceTarget(40, -15, true);
+        }, 1500);
+      }
     }
   }, 15);
 }
